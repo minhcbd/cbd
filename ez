@@ -1,0 +1,180 @@
+#Persistent
+#SingleInstance Force
+SetBatchLines, -1
+CoordMode, ToolTip, Screen
+random, enemyX, 300, 700
+enemyAlive := true
+score := 0
+highScore := 0
+bossAppeared := false
+bossHP := 5
+rocketCount := 0
+
+playerX := 100
+playerY := 500
+jumping := false
+vy := 0
+playerSpeed := 5  ; Tốc độ di chuyển của người chơi
+
+; Hiển thị GUI với nền xanh lá đậm
+Gui, +AlwaysOnTop -Caption
+Gui, Color, 008000
+Gui, Add, Text, vHighScoreText x10 y10 w200 h20, High Score: 0
+Gui, Show, w800 h600, Demon Slayer vs Muzan
+
+; Tạo hình khối cho người chơi và quái vật
+Gui, Add, Progress, vPlayer x%playerX% y%playerY% w30 h30 Background00FF00 c00FF00 ; người chơi
+Gui, Add, Progress, vEnemy x%enemyX% y500 w30 h30 BackgroundFF0000 cFF0000 ; quái vật
+
+; Vật cản
+Gui, Add, Progress, vObstacle x375 y450 w50 h150 BackgroundFFFFFF cFFFFFF ; vật cản
+SetTimer, GameLoop, 20
+Return
+
+; Điều khiển
+~a:: playerX -= playerSpeed
+~d:: playerX += playerSpeed
+~Space::
+if (!jumping)
+{
+    vy := -15
+    jumping := true
+}
+return
+
+GameLoop:
+; Trọng lực
+vy += 1
+playerY += vy
+
+; Va chạm với mặt đất
+if (playerY >= 500)
+{
+    playerY := 500
+    vy := 0
+    jumping := false
+}
+
+; Va chạm với vật cản
+if (playerX + 30 > 375 && playerX < 425 && playerY + 30 > 450 && playerY < 600)
+{
+    if (playerX + 30 > 375 && playerX < 425)
+    {
+        if (playerX > 375)
+            playerX := 375 - 30  ; dừng di chuyển qua vật cản
+        else
+            playerX := 425  ; dừng di chuyển ngược lại
+    }
+}
+
+; Cập nhật vị trí người chơi
+GuiControl, Move, Player, x%playerX% y%playerY%
+
+; Enemy di chuyển nếu còn sống
+if (enemyAlive)
+{
+    enemyX -= 2
+    if (enemyX < 50)
+        enemyX := 700
+
+    ; Va chạm đầu
+    if (playerY + 30 >= 500 && playerY + 30 <= 510 && playerX + 30 > enemyX && playerX < enemyX + 30 && vy > 0)
+    {
+        enemyAlive := false
+        GuiControl, Hide, Enemy
+        score++
+        UpdateHighScore()  ; Cập nhật điểm cao khi tiêu diệt quái vật
+        if (score >= 10)
+            bossAppeared := true
+        else
+        {
+            SetTimer, RespawnEnemy, -1000
+        }
+    }
+    else if (playerX + 30 > enemyX && playerX < enemyX + 30 && playerY + 30 > 500) {
+        MsgBox, You were killed by demon! Score: %score%
+        ExitApp
+    }
+    GuiControl, Move, Enemy, x%enemyX%
+}
+
+; Boss xuất hiện
+if (bossAppeared)
+{
+    if (!bossExists)
+    {
+        Gui, Add, Progress, vBoss x700 y500 w40 h40 Background0000FF c0000FF
+        bossX := 700
+        bossExists := true
+    }
+
+    ; Boss di chuyển về phía player
+    if (bossX > playerX)
+        bossX -= 2
+    else
+        bossX += 2
+    GuiControl, Move, Boss, x%bossX%
+
+    ; Nhảy vào đầu boss
+    if (playerY + 30 >= 500 && playerY + 30 <= 510 && playerX + 30 > bossX && playerX < bossX + 40 && vy > 0)
+    {
+        bossHP--
+        if (bossHP <= 0)
+        {
+            score += 5  ; Thưởng điểm khi tiêu diệt boss
+            MsgBox, You defeated Muzan! Final Score: %score%
+            bossHP := 5
+            bossAppeared := false
+            bossExists := false
+            GuiControl, Hide, Boss
+            enemyAlive := true
+            SetTimer, RespawnEnemy, -1000
+        }
+    }
+
+    ; Bắn tên lửa
+    if (rocketCount < 3 && Mod(A_TickCount, 1500) < 20)
+    {
+        newX := bossX
+        Gui, Add, Progress, vRocket%rocketCount% x%newX% y500 w10 h10 BackgroundFFAA00 cFFAA00
+        rocket%rocketCount%X := newX
+        rocketCount++
+    }
+
+    ; Di chuyển tên lửa
+    Loop, %rocketCount%
+    {
+        i := A_Index - 1
+        rocket%ix% := rocket%i%X += (playerX > rocket%i%X ? 5 : -5)
+        GuiControl, Move, Rocket%i%, x%rocket%i%X%
+        ; Va chạm
+        if (playerX + 30 > rocket%i%X && playerX < rocket%i%X + 10 && playerY + 30 > 500)
+        {
+            MsgBox, You were hit by Muzan's rocket! Score: %score%
+            ExitApp
+        }
+    }
+}
+return
+
+RespawnEnemy:
+enemyX := Random(300, 700)
+GuiControl, Move, Enemy, x%enemyX% y500
+GuiControl, Show, Enemy
+enemyAlive := true
+return
+
+; Hàm cập nhật điểm cao
+UpdateHighScore:
+if (score > highScore)
+{
+    highScore := score
+    ; Hiển thị điểm cao trên GUI
+    GuiControl, , HighScoreText, High Score: %highScore%
+}
+return
+
+Random(min, max) {
+    Random, out, %min%, %max%
+    return out
+}
