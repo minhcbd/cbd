@@ -1,180 +1,337 @@
-#Persistent
-#SingleInstance Force
-SetBatchLines, -1
-CoordMode, ToolTip, Screen
-random, enemyX, 300, 700
-enemyAlive := true
-score := 0
-highScore := 0
-bossAppeared := false
-bossHP := 5
-rocketCount := 0
+-- Tải thư viện Rayfield
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-playerX := 100
-playerY := 500
-jumping := false
-vy := 0
-playerSpeed := 5  ; Tốc độ di chuyển của người chơi
+-- Tạo cửa sổ chính
+local Window = Rayfield:CreateWindow({
+   Name = "TSB Helper - ESP & Teleport",
+   Icon = "user", -- Sử dụng Lucide icon
+   LoadingTitle = "The Strongest Battlegrounds",
+   LoadingSubtitle = "ESP & Teleport System Loading...",
+   Theme = "Default",
+   
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "TSB_Config",
+      FileName = "TSB_Settings"
+   },
+   
+   Discord = {
+      Enabled = false,
+      Invite = "sirius",
+      RememberJoins = true
+   },
+   
+   KeySystem = false,
+   ToggleUIKeybind = "K"
+})
 
-; Hiển thị GUI với nền xanh lá đậm
-Gui, +AlwaysOnTop -Caption
-Gui, Color, 008000
-Gui, Add, Text, vHighScoreText x10 y10 w200 h20, High Score: 0
-Gui, Show, w800 h600, Demon Slayer vs Muzan
+-- Biến toàn cục
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
-; Tạo hình khối cho người chơi và quái vật
-Gui, Add, Progress, vPlayer x%playerX% y%playerY% w30 h30 Background00FF00 c00FF00 ; người chơi
-Gui, Add, Progress, vEnemy x%enemyX% y500 w30 h30 BackgroundFF0000 cFF0000 ; quái vật
+local ESPEnabled = false
+local NoclipEnabled = false
+local TeleportIndex = 1
+local ESPFolders = {}
+local NoclipConnection = nil
 
-; Vật cản
-Gui, Add, Progress, vObstacle x375 y450 w50 h150 BackgroundFFFFFF cFFFFFF ; vật cản
-SetTimer, GameLoop, 20
-Return
+-- ==================== ESP SYSTEM ====================
+local ESPLibrary = {}
 
-; Điều khiển
-~a:: playerX -= playerSpeed
-~d:: playerX += playerSpeed
-~Space::
-if (!jumping)
-{
-    vy := -15
-    jumping := true
-}
-return
+function ESPLibrary:CreateESP(player)
+    if player == LocalPlayer then return end
+    if ESPFolders[player] then return end
+    
+    local function setupESP(character)
+        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
+        
+        -- Tạo highlight
+        local highlight = Instance.new("Highlight")
+        highlight.Name = player.Name .. "_ESP"
+        highlight.Adornee = character
+        highlight.Parent = character
+        highlight.FillColor = player.Team == LocalPlayer.Team and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+        highlight.FillTransparency = 0.4
+        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+        highlight.OutlineTransparency = 0.1
+        
+        -- Tạo billboard GUI hiển thị tên
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = player.Name .. "_NameTag"
+        billboard.Adornee = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
+        billboard.Size = UDim2.new(0, 200, 0, 50)
+        billboard.StudsOffset = Vector3.new(0, 3, 0)
+        billboard.AlwaysOnTop = true
+        billboard.MaxDistance = 100
+        billboard.Parent = character
+        
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.Text = player.Name
+        textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        textLabel.TextSize = 14
+        textLabel.Font = Enum.Font.GothamBold
+        textLabel.TextStrokeTransparency = 0
+        textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        textLabel.Parent = billboard
+        
+        ESPFolders[player] = {highlight, billboard}
+    end
+    
+    if player.Character then
+        setupESP(player.Character)
+    end
+    
+    player.CharacterAdded:Connect(function(character)
+        task.wait(1) -- Đợi character load hoàn toàn
+        if ESPEnabled then
+            setupESP(character)
+        end
+    end)
+end
 
-GameLoop:
-; Trọng lực
-vy += 1
-playerY += vy
+function ESPLibrary:RemoveESP(player)
+    if ESPFolders[player] then
+        for _, object in pairs(ESPFolders[player]) do
+            if object then object:Destroy() end
+        end
+        ESPFolders[player] = nil
+    end
+end
 
-; Va chạm với mặt đất
-if (playerY >= 500)
-{
-    playerY := 500
-    vy := 0
-    jumping := false
-}
-
-; Va chạm với vật cản
-if (playerX + 30 > 375 && playerX < 425 && playerY + 30 > 450 && playerY < 600)
-{
-    if (playerX + 30 > 375 && playerX < 425)
-    {
-        if (playerX > 375)
-            playerX := 375 - 30  ; dừng di chuyển qua vật cản
-        else
-            playerX := 425  ; dừng di chuyển ngược lại
-    }
-}
-
-; Cập nhật vị trí người chơi
-GuiControl, Move, Player, x%playerX% y%playerY%
-
-; Enemy di chuyển nếu còn sống
-if (enemyAlive)
-{
-    enemyX -= 2
-    if (enemyX < 50)
-        enemyX := 700
-
-    ; Va chạm đầu
-    if (playerY + 30 >= 500 && playerY + 30 <= 510 && playerX + 30 > enemyX && playerX < enemyX + 30 && vy > 0)
-    {
-        enemyAlive := false
-        GuiControl, Hide, Enemy
-        score++
-        UpdateHighScore()  ; Cập nhật điểm cao khi tiêu diệt quái vật
-        if (score >= 10)
-            bossAppeared := true
-        else
-        {
-            SetTimer, RespawnEnemy, -1000
-        }
-    }
-    else if (playerX + 30 > enemyX && playerX < enemyX + 30 && playerY + 30 > 500) {
-        MsgBox, You were killed by demon! Score: %score%
-        ExitApp
-    }
-    GuiControl, Move, Enemy, x%enemyX%
-}
-
-; Boss xuất hiện
-if (bossAppeared)
-{
-    if (!bossExists)
-    {
-        Gui, Add, Progress, vBoss x700 y500 w40 h40 Background0000FF c0000FF
-        bossX := 700
-        bossExists := true
-    }
-
-    ; Boss di chuyển về phía player
-    if (bossX > playerX)
-        bossX -= 2
+function ESPLibrary:ToggleESP(value)
+    ESPEnabled = value
+    if value then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                self:CreateESP(player)
+            end
+        end
     else
-        bossX += 2
-    GuiControl, Move, Boss, x%bossX%
+        for player in pairs(ESPFolders) do
+            self:RemoveESP(player)
+        end
+    end
+end
 
-    ; Nhảy vào đầu boss
-    if (playerY + 30 >= 500 && playerY + 30 <= 510 && playerX + 30 > bossX && playerX < bossX + 40 && vy > 0)
-    {
-        bossHP--
-        if (bossHP <= 0)
-        {
-            score += 5  ; Thưởng điểm khi tiêu diệt boss
-            MsgBox, You defeated Muzan! Final Score: %score%
-            bossHP := 5
-            bossAppeared := false
-            bossExists := false
-            GuiControl, Hide, Boss
-            enemyAlive := true
-            SetTimer, RespawnEnemy, -1000
-        }
-    }
+-- ==================== NOCLIP SYSTEM ====================
+local NoclipLibrary = {}
 
-    ; Bắn tên lửa
-    if (rocketCount < 3 && Mod(A_TickCount, 1500) < 20)
-    {
-        newX := bossX
-        Gui, Add, Progress, vRocket%rocketCount% x%newX% y500 w10 h10 BackgroundFFAA00 cFFAA00
-        rocket%rocketCount%X := newX
-        rocketCount++
-    }
+function NoclipLibrary:ToggleNoclip(value)
+    NoclipEnabled = value
+    local character = LocalPlayer.Character
+    
+    if NoclipConnection then
+        NoclipConnection:Disconnect()
+        NoclipConnection = nil
+    end
+    
+    if value and character then
+        NoclipConnection = RunService.Stepped:Connect(function()
+            if NoclipEnabled and character then
+                for _, part in pairs(character:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+        
+        -- Áp dụng ngay lập tức
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    elseif character then
+        -- Khôi phục collision
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = true
+            end
+        end
+    end
+end
 
-    ; Di chuyển tên lửa
-    Loop, %rocketCount%
-    {
-        i := A_Index - 1
-        rocket%ix% := rocket%i%X += (playerX > rocket%i%X ? 5 : -5)
-        GuiControl, Move, Rocket%i%, x%rocket%i%X%
-        ; Va chạm
-        if (playerX + 30 > rocket%i%X && playerX < rocket%i%X + 10 && playerY + 30 > 500)
-        {
-            MsgBox, You were hit by Muzan's rocket! Score: %score%
-            ExitApp
-        }
-    }
-}
-return
+-- ==================== TELEPORT SYSTEM ====================
+local TeleportLibrary = {}
 
-RespawnEnemy:
-enemyX := Random(300, 700)
-GuiControl, Move, Enemy, x%enemyX% y500
-GuiControl, Show, Enemy
-enemyAlive := true
-return
+function TeleportLibrary:GetPlayerList()
+    local playerList = {}
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+            if humanoidRootPart then
+                table.insert(playerList, player)
+            end
+        end
+    end
+    return playerList
+end
 
-; Hàm cập nhật điểm cao
-UpdateHighScore:
-if (score > highScore)
-{
-    highScore := score
-    ; Hiển thị điểm cao trên GUI
-    GuiControl, , HighScoreText, High Score: %highScore%
-}
-return
+function TeleportLibrary:TeleportToPlayer(player)
+    if not player or not player.Character then return false end
+    
+    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
+    local localCharacter = LocalPlayer.Character
+    local localHumanoidRootPart = localCharacter and localCharacter:FindFirstChild("HumanoidRootPart")
+    
+    if not humanoidRootPart or not localHumanoidRootPart then return false end
+    
+    -- Sử dụng TweenService để teleport mượt mà
+    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(localHumanoidRootPart, tweenInfo, {CFrame = humanoidRootPart.CFrame + Vector3.new(0, 3, 0)})
+    tween:Play()
+    
+    return true
+end
 
-Random(min, max) {
-    Random, out, %min%, %max%
-    return out
-}
+-- ==================== GUI CREATION ====================
+
+-- Tab chính
+local MainTab = Window:CreateTab("Công cụ chính", "settings")
+
+-- Section ESP
+local ESPSection = MainTab:CreateSection("Hệ thống ESP")
+local ESPToggle = MainTab:CreateToggle({
+   Name = "Bật/Tắt ESP người chơi",
+   CurrentValue = false,
+   Flag = "ESPToggle",
+   Callback = function(Value)
+      ESPLibrary:ToggleESP(Value)
+   end,
+})
+
+-- Section Noclip
+local NoclipSection = MainTab:CreateSection("Hệ thống Noclip")
+local NoclipToggle = MainTab:CreateToggle({
+   Name = "Bật/Tắt Noclip (Đi xuyên tường)",
+   CurrentValue = false,
+   Flag = "NoclipToggle",
+   Callback = function(Value)
+      NoclipLibrary:ToggleNoclip(Value)
+   end,
+})
+
+MainTab:CreateParagraph({
+   Title = "Hướng dẫn Noclip", 
+   Content = "Dùng để thoát ra khi bị kẹt trong vật thể hoặc tường."
+})
+
+-- Section Teleport
+local TeleportSection = MainTab:CreateSection("Hệ thống Teleport")
+
+local PlayerCountLabel = MainTab:CreateLabel("Đang tải...", "users", Color3.fromRGB(255, 255, 255), true)
+
+local TeleportButton = MainTab:CreateButton({
+   Name = "📡 Teleport đến người chơi tiếp theo",
+   Callback = function()
+      local playerList = TeleportLibrary:GetPlayerList()
+      if #playerList == 0 then return end
+      
+      if TeleportIndex > #playerList then
+         TeleportIndex = 1
+      end
+      
+      local targetPlayer = playerList[TeleportIndex]
+      if TeleportLibrary:TeleportToPlayer(targetPlayer) then
+         TeleportIndex = TeleportIndex + 1
+      end
+   end,
+})
+
+local ResetTeleportBtn = MainTab:CreateButton({
+   Name = "🔄 Reset danh sách Teleport",
+   Callback = function()
+      TeleportIndex = 1
+   end,
+})
+
+local CurrentTargetLabel = MainTab:CreateLabel("Chưa chọn người chơi", "user", Color3.fromRGB(200, 200, 200), true)
+
+-- Tab cài đặt
+local SettingsTab = Window:CreateTab("Cài đặt", "sliders")
+
+local ESPConfigSection = SettingsTab:CreateSection("Cài đặt ESP")
+local TeamColorToggle = SettingsTab:CreateToggle({
+   Name = "Màu theo Team (Xanh: đồng đội, Đỏ: địch)",
+   CurrentValue = true,
+   Flag = "TeamColorToggle",
+   Callback = function(Value)
+      -- Có thể thêm logic cập nhật màu ESP
+   end,
+})
+
+local TeleportConfigSection = SettingsTab:CreateSection("Cài đặt Teleport")
+local SafeTeleportToggle = SettingsTab:CreateToggle({
+   Name = "Chế độ Teleport an toàn",
+   CurrentValue = true,
+   Flag = "SafeTeleportToggle",
+   Callback = function(Value)
+      -- Có thể thêm logic teleport an toàn
+   end,
+})
+
+-- ==================== UPDATE SYSTEMS ====================
+
+-- Hệ thống cập nhật thông tin
+local function updatePlayerInfo()
+   local playerList = TeleportLibrary:GetPlayerList()
+   PlayerCountLabel:Set("Số người chơi: " .. #playerList)
+   
+   if #playerList > 0 then
+      if TeleportIndex > #playerList then TeleportIndex = 1 end
+      local targetPlayer = playerList[TeleportIndex]
+      CurrentTargetLabel:Set("Tiếp theo: " .. targetPlayer.Name)
+   else
+      CurrentTargetLabel:Set("Không có người chơi")
+   end
+end
+
+-- Cập nhật định kỳ
+coroutine.wrap(function()
+   while true do
+      task.wait(2)
+      updatePlayerInfo()
+   end
+end)()
+
+-- Xử lý sự kiện người chơi
+Players.PlayerAdded:Connect(function(player)
+   if ESPEnabled then
+      task.wait(1)
+      ESPLibrary:CreateESP(player)
+   end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+   ESPLibrary:RemoveESP(player)
+end)
+
+-- Xử lý respawn
+LocalPlayer.CharacterAdded:Connect(function(character)
+   task.wait(1)
+   if NoclipEnabled then
+      NoclipLibrary:ToggleNoclip(true)
+   end
+   if ESPEnabled then
+      ESPLibrary:ToggleESP(true)
+   end
+end)
+
+-- ==================== LOAD CONFIGURATION ====================
+Rayfield:LoadConfiguration()
+
+-- Thông báo khi load xong
+task.wait(1)
+Rayfield:Notify({
+   Title = "TSB Helper Đã Sẵn Sàng",
+   Content = "ESP, Teleport & Noclip systems activated!",
+   Duration = 3,
+   Image = "check-circle"
+})
+
+print("🎯 TSB Helper loaded successfully!")
