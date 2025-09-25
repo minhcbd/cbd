@@ -3,22 +3,21 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 -- Tạo cửa sổ chính
 local Window = Rayfield:CreateWindow({
-   Name = "TSB Helper - ESP & Teleport",
+   Name = "Multi-hub",
    Icon = "user", -- Sử dụng Lucide icon
-   LoadingTitle = "The Strongest Battlegrounds",
-   LoadingSubtitle = "ESP & Teleport System Loading...",
+   LoadingTitle = "Multi-script",
+   LoadingSubtitle = "System Loading...",
    Theme = "Default",
    
    ConfigurationSaving = {
       Enabled = true,
-      FolderName = "TSB_Config",
-      FileName = "TSB_Settings"
+      FolderName = "Multi_Config",
+      FileName = "Multi_Settings"
    },
    
    Discord = {
       Enabled = false,
-      Invite = "sirius",
-      RememberJoins = true
+      Invite = "",
    },
    
    KeySystem = false,
@@ -227,7 +226,7 @@ local TeleportSection = MainTab:CreateSection("Hệ thống Teleport")
 local PlayerCountLabel = MainTab:CreateLabel("Đang tải...", "users", Color3.fromRGB(255, 255, 255), true)
 
 local TeleportButton = MainTab:CreateButton({
-   Name = "📡 Teleport đến người chơi tiếp theo",
+   Name = "Teleport đến người chơi tiếp theo",
    Callback = function()
       local playerList = TeleportLibrary:GetPlayerList()
       if #playerList == 0 then return end
@@ -244,7 +243,7 @@ local TeleportButton = MainTab:CreateButton({
 })
 
 local ResetTeleportBtn = MainTab:CreateButton({
-   Name = "🔄 Reset danh sách Teleport",
+   Name = "Reset danh sách Teleport",
    Callback = function()
       TeleportIndex = 1
    end,
@@ -328,10 +327,10 @@ Rayfield:LoadConfiguration()
 -- Thông báo khi load xong
 task.wait(1)
 Rayfield:Notify({
-   Title = "TSB Helper Đã Sẵn Sàng",
-   Content = "ESP, Teleport & Noclip systems activated!",
+   Title = "System loaded!",
+   Content = "All system activated!",
    Duration = 3,
    Image = "check-circle"
 })
 
-print("🎯 TSB Helper loaded successfully!")
+print("Multi-hub loaded successfully!")
