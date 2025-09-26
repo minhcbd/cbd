@@ -4,31 +4,20 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 -- Tạo cửa sổ chính
 local Window = Rayfield:CreateWindow({
    Name = "Multi-hub",
-   Icon = "user", -- Sử dụng Lucide icon
-   LoadingTitle = "Multi-script",
-   LoadingSubtitle = "System Loading...",
-   Theme = "Default",
-   
+   LoadingTitle = "Loading...",
+   LoadingSubtitle = "It can takes few minutes...",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = "Multi_Config",
       FileName = "Multi_Settings"
    },
-   
-   Discord = {
-      Enabled = false,
-      Invite = "",
-   },
-   
    KeySystem = false,
-   ToggleUIKeybind = "K"
 })
 
 -- Biến toàn cục
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 
 local ESPEnabled = false
 local NoclipEnabled = false
@@ -36,89 +25,8 @@ local TeleportIndex = 1
 local ESPFolders = {}
 local NoclipConnection = nil
 
--- ==================== ESP SYSTEM ====================
-local ESPLibrary = {}
-
-function ESPLibrary:CreateESP(player)
-    if player == LocalPlayer then return end
-    if ESPFolders[player] then return end
-    
-    local function setupESP(character)
-        if not character or not character:FindFirstChild("HumanoidRootPart") then return end
-        
-        -- Tạo highlight
-        local highlight = Instance.new("Highlight")
-        highlight.Name = player.Name .. "_ESP"
-        highlight.Adornee = character
-        highlight.Parent = character
-        highlight.FillColor = player.Team == LocalPlayer.Team and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
-        highlight.FillTransparency = 0.4
-        highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-        highlight.OutlineTransparency = 0.1
-        
-        -- Tạo billboard GUI hiển thị tên
-        local billboard = Instance.new("BillboardGui")
-        billboard.Name = player.Name .. "_NameTag"
-        billboard.Adornee = character:FindFirstChild("Head") or character:FindFirstChild("HumanoidRootPart")
-        billboard.Size = UDim2.new(0, 200, 0, 50)
-        billboard.StudsOffset = Vector3.new(0, 3, 0)
-        billboard.AlwaysOnTop = true
-        billboard.MaxDistance = 100
-        billboard.Parent = character
-        
-        local textLabel = Instance.new("TextLabel")
-        textLabel.Size = UDim2.new(1, 0, 1, 0)
-        textLabel.BackgroundTransparency = 1
-        textLabel.Text = player.Name
-        textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-        textLabel.TextSize = 14
-        textLabel.Font = Enum.Font.GothamBold
-        textLabel.TextStrokeTransparency = 0
-        textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-        textLabel.Parent = billboard
-        
-        ESPFolders[player] = {highlight, billboard}
-    end
-    
-    if player.Character then
-        setupESP(player.Character)
-    end
-    
-    player.CharacterAdded:Connect(function(character)
-        task.wait(1) -- Đợi character load hoàn toàn
-        if ESPEnabled then
-            setupESP(character)
-        end
-    end)
-end
-
-function ESPLibrary:RemoveESP(player)
-    if ESPFolders[player] then
-        for _, object in pairs(ESPFolders[player]) do
-            if object then object:Destroy() end
-        end
-        ESPFolders[player] = nil
-    end
-end
-
-function ESPLibrary:ToggleESP(value)
-    ESPEnabled = value
-    if value then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer then
-                self:CreateESP(player)
-            end
-        end
-    else
-        for player in pairs(ESPFolders) do
-            self:RemoveESP(player)
-        end
-    end
-end
-
--- ==================== NOCLIP SYSTEM ====================
+-- ==================== HỆ THỐNG NOCLIP ====================
 local NoclipLibrary = {}
-
 function NoclipLibrary:ToggleNoclip(value)
     NoclipEnabled = value
     local character = LocalPlayer.Character
@@ -138,15 +46,7 @@ function NoclipLibrary:ToggleNoclip(value)
                 end
             end
         end)
-        
-        -- Áp dụng ngay lập tức
-        for _, part in pairs(character:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-            end
-        end
     elseif character then
-        -- Khôi phục collision
         for _, part in pairs(character:GetDescendants()) do
             if part:IsA("BasePart") then
                 part.CanCollide = true
@@ -155,182 +55,104 @@ function NoclipLibrary:ToggleNoclip(value)
     end
 end
 
--- ==================== TELEPORT SYSTEM ====================
-local TeleportLibrary = {}
+-- ==================== HỆ THỐNG ESP ====================
+local ESPLibrary = {}
+function ESPLibrary:CreateESP(player)
+    if player == LocalPlayer then return end
+    if ESPFolders[player] then return end
+    
+    local function setupESP(character)
+        if not character then return end
+        local highlight = Instance.new("Highlight")
+        highlight.Adornee = character
+        highlight.Parent = character
+        highlight.FillTransparency = 0.4
+        highlight.OutlineTransparency = 0.1
+        ESPFolders[player] = {highlight}
+    end
+    
+    if player.Character then setupESP(player.Character) end
+    player.CharacterAdded:Connect(setupESP)
+end
+function ESPLibrary:RemoveESP(player)
+    if ESPFolders[player] then
+        for _, object in pairs(ESPFolders[player]) do
+            if object then object:Destroy() end
+        end
+        ESPFolders[player] = nil
+    end
+end
+function ESPLibrary:ToggleESP(value)
+    ESPEnabled = value
+    if value then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then self:CreateESP(player) end
+        end
+    else
+        for player in pairs(ESPFolders) do
+            self:RemoveESP(player)
+        end
+    end
+end
 
-function TeleportLibrary:GetPlayerList()
+-- ==================== HỆ THỐNG TELEPORT TỰ ĐỘNG ====================
+local TeleportLibrary = {}
+function TeleportLibrary:TeleportToNextPlayer()
     local playerList = {}
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
             local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
-            if humanoidRootPart then
-                table.insert(playerList, player)
-            end
+            if humanoidRootPart then table.insert(playerList, player) end
         end
     end
-    return playerList
+    if #playerList == 0 then return end
+    if TeleportIndex > #playerList then TeleportIndex = 1 end
+    
+    local targetPlayer = playerList[TeleportIndex]
+    local targetHRP = targetPlayer.Character.HumanoidRootPart
+    local localHRP = LocalPlayer.Character and LocalPlayer.Character.HumanoidRootPart
+    
+    if targetHRP and localHRP then
+        localHRP.CFrame = targetHRP.CFrame + Vector3.new(0, 3, 0)
+        TeleportIndex = TeleportIndex + 1
+    end
 end
 
-function TeleportLibrary:TeleportToPlayer(player)
-    if not player or not player.Character then return false end
-    
-    local humanoidRootPart = player.Character:FindFirstChild("HumanoidRootPart")
-    local localCharacter = LocalPlayer.Character
-    local localHumanoidRootPart = localCharacter and localCharacter:FindFirstChild("HumanoidRootPart")
-    
-    if not humanoidRootPart or not localHumanoidRootPart then return false end
-    
-    -- Sử dụng TweenService để teleport mượt mà
-    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local tween = TweenService:Create(localHumanoidRootPart, tweenInfo, {CFrame = humanoidRootPart.CFrame + Vector3.new(0, 3, 0)})
-    tween:Play()
-    
-    return true
-end
+-- ==================== GIAO DIỆN NGƯỜI DÙNG ====================
+local Tab = Window:CreateTab("Công Cụ Chính", "settings")
 
--- ==================== GUI CREATION ====================
-
--- Tab chính
-local MainTab = Window:CreateTab("Công cụ chính", "settings")
-
--- Section ESP
-local ESPSection = MainTab:CreateSection("Hệ thống ESP")
-local ESPToggle = MainTab:CreateToggle({
-   Name = "Bật/Tắt ESP người chơi",
-   CurrentValue = false,
-   Flag = "ESPToggle",
-   Callback = function(Value)
-      ESPLibrary:ToggleESP(Value)
-   end,
-})
-
--- Section Noclip
-local NoclipSection = MainTab:CreateSection("Hệ thống Noclip")
-local NoclipToggle = MainTab:CreateToggle({
-   Name = "Bật/Tắt Noclip (Đi xuyên tường)",
-   CurrentValue = false,
-   Flag = "NoclipToggle",
-   Callback = function(Value)
-      NoclipLibrary:ToggleNoclip(Value)
-   end,
-})
-
-MainTab:CreateParagraph({
-   Title = "Hướng dẫn Noclip", 
-   Content = "Dùng để thoát ra khi bị kẹt trong vật thể hoặc tường."
-})
-
--- Section Teleport
-local TeleportSection = MainTab:CreateSection("Hệ thống Teleport")
-
-local PlayerCountLabel = MainTab:CreateLabel("Đang tải...", "users", Color3.fromRGB(255, 255, 255), true)
-
-local TeleportButton = MainTab:CreateButton({
-   Name = "Teleport đến người chơi tiếp theo",
+-- Nút Teleport duy nhất
+Tab:CreateButton({
+   Name = "TELEPORT",
    Callback = function()
-      local playerList = TeleportLibrary:GetPlayerList()
-      if #playerList == 0 then return end
-      
-      if TeleportIndex > #playerList then
-         TeleportIndex = 1
-      end
-      
-      local targetPlayer = playerList[TeleportIndex]
-      if TeleportLibrary:TeleportToPlayer(targetPlayer) then
-         TeleportIndex = TeleportIndex + 1
-      end
+        TeleportLibrary:TeleportToNextPlayer()
    end,
 })
 
-local ResetTeleportBtn = MainTab:CreateButton({
-   Name = "Reset danh sách Teleport",
-   Callback = function()
-      TeleportIndex = 1
-   end,
-})
-
-local CurrentTargetLabel = MainTab:CreateLabel("Chưa chọn người chơi", "user", Color3.fromRGB(200, 200, 200), true)
-
--- Tab cài đặt
-local SettingsTab = Window:CreateTab("Cài đặt", "sliders")
-
-local ESPConfigSection = SettingsTab:CreateSection("Cài đặt ESP")
-local TeamColorToggle = SettingsTab:CreateToggle({
-   Name = "Màu theo Team (Xanh: đồng đội, Đỏ: địch)",
-   CurrentValue = true,
-   Flag = "TeamColorToggle",
+-- Toggle cho ESP
+Tab:CreateToggle({
+   Name = "ESP",
+   CurrentValue = false,
    Callback = function(Value)
-      -- Có thể thêm logic cập nhật màu ESP
+        ESPLibrary:ToggleESP(Value)
    end,
 })
 
-local TeleportConfigSection = SettingsTab:CreateSection("Cài đặt Teleport")
-local SafeTeleportToggle = SettingsTab:CreateToggle({
-   Name = "Chế độ Teleport an toàn",
-   CurrentValue = true,
-   Flag = "SafeTeleportToggle",
+-- Toggle cho Noclip
+Tab:CreateToggle({
+   Name = "NOCLIP",
+   CurrentValue = false,
    Callback = function(Value)
-      -- Có thể thêm logic teleport an toàn
+        NoclipLibrary:ToggleNoclip(Value)
    end,
 })
 
--- ==================== UPDATE SYSTEMS ====================
-
--- Hệ thống cập nhật thông tin
-local function updatePlayerInfo()
-   local playerList = TeleportLibrary:GetPlayerList()
-   PlayerCountLabel:Set("Số người chơi: " .. #playerList)
-   
-   if #playerList > 0 then
-      if TeleportIndex > #playerList then TeleportIndex = 1 end
-      local targetPlayer = playerList[TeleportIndex]
-      CurrentTargetLabel:Set("Tiếp theo: " .. targetPlayer.Name)
-   else
-      CurrentTargetLabel:Set("Không có người chơi")
-   end
-end
-
--- Cập nhật định kỳ
-coroutine.wrap(function()
-   while true do
-      task.wait(2)
-      updatePlayerInfo()
-   end
-end)()
-
--- Xử lý sự kiện người chơi
-Players.PlayerAdded:Connect(function(player)
-   if ESPEnabled then
-      task.wait(1)
-      ESPLibrary:CreateESP(player)
-   end
-end)
-
-Players.PlayerRemoving:Connect(function(player)
-   ESPLibrary:RemoveESP(player)
-end)
-
--- Xử lý respawn
+-- Xử lý khi respawn để giữ trạng thái Noclip
 LocalPlayer.CharacterAdded:Connect(function(character)
-   task.wait(1)
-   if NoclipEnabled then
-      NoclipLibrary:ToggleNoclip(true)
-   end
-   if ESPEnabled then
-      ESPLibrary:ToggleESP(true)
-   end
+    task.wait(1)
+    if NoclipEnabled then
+        NoclipLibrary:ToggleNoclip(true)
+    end
 end)
 
--- ==================== LOAD CONFIGURATION ====================
 Rayfield:LoadConfiguration()
-
--- Thông báo khi load xong
-task.wait(1)
-Rayfield:Notify({
-   Title = "System loaded!",
-   Content = "All system activated!",
-   Duration = 3,
-   Image = "check-circle"
-})
-
-print("Multi-hub loaded successfully!")
